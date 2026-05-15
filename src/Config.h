@@ -9,13 +9,14 @@ constexpr uint8_t BMP_ADDR    = 0x77;
 constexpr uint8_t TILT_PIN    = 5;
 constexpr uint8_t RGB_LED_PIN = 8; // Пин встроенного RGB-светодиода (WS2812) на ESP32-C6-LCD-1.47
 
-constexpr uint8_t EPD_CS      = 10;
-constexpr uint8_t EPD_DC      = 4;
-constexpr uint8_t EPD_RST     = 3;
-constexpr uint8_t EPD_BUSY    = 2;
-constexpr uint8_t EPD_SCLK    = 6;
-constexpr uint8_t EPD_MOSI    = 7;
-constexpr int8_t  EPD_MISO    = -1;
+// Пины для LCD ST7789 на плате Waveshare ESP32-C6-LCD-1.47
+constexpr uint8_t TFT_CS      = 14;
+constexpr uint8_t TFT_DC      = 15;
+constexpr uint8_t TFT_RST     = 21;
+constexpr uint8_t TFT_BL      = 22; // Пин управления подсветкой LCD
+constexpr uint8_t TFT_SCLK    = 7;
+constexpr uint8_t TFT_MOSI    = 6;
+constexpr int8_t  TFT_MISO    = -1;
 
 // --- Настройки ---
 constexpr float ALTITUDE_M         = 150.0f;

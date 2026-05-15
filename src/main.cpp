@@ -64,15 +64,19 @@ void checkTiltSensor() {
 void setup() {
     Serial.begin(115200);
     delay(2000);
-    Serial.println("\n=== BOOT: Pocket Station v5 (Modular) ===");
+    Serial.println("\n=== BOOT: Pocket Station v6 (LCD C6) ===");
     
     pinMode(TILT_PIN, INPUT_PULLUP);
     
     rgbLed.begin();
     rgbLed.show(); // Выключаем RGB-диод при старте
 
+    // Включаем подсветку TFT дисплея
+    pinMode(TFT_BL, OUTPUT);
+    digitalWrite(TFT_BL, HIGH);
+
     Wire.begin(BMP_SDA, BMP_SCL);
-    SPI.begin(EPD_SCLK, EPD_MISO, EPD_MOSI, EPD_CS);
+    SPI.begin(TFT_SCLK, TFT_MISO, TFT_MOSI, TFT_CS);
     
     Serial.print("[BMP280] ");
     // Fallback: пробуем сначала адрес из конфига (0x77), если не найден - пробуем 0x76
@@ -89,7 +93,7 @@ void setup() {
         Serial.println("FAIL (Check wiring & I2C Address)");
     }
     
-    Serial.print("[EPD] ");
+    Serial.print("[TFT] ");
     displayManager.init(weatherModel.current_rotation);
     Serial.println("OK");
 

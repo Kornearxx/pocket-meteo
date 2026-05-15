@@ -1,7 +1,9 @@
 #pragma once
 
 #include <Arduino.h>
-#include <GxEPD2_BW.h>
+#include <SPI.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_ST7789.h>
 #include "Config.h"
 #include "WeatherModel.h"
 
@@ -19,8 +21,6 @@ private:
     void drawGraphMode(const WeatherModel& model);
     void drawCurrentMode(const WeatherModel& model);
     
-    GxEPD2_290_T94 eink_driver;
-    GxEPD2_BW<GxEPD2_290_T94, GxEPD2_290_T94::HEIGHT> display;
+    Adafruit_ST7789 tft;
     bool needs_redraw = false;
-    uint32_t cycle_cnt = 0;
 };

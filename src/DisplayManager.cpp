@@ -2,30 +2,33 @@
 #include <Fonts/FreeSans9pt7b.h>
 #include <Fonts/FreeSansBold12pt7b.h>
 
-DisplayManager::DisplayManager() 
-    : eink_driver(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY),
-      display(eink_driver) {}
+// Профессиональные настройки цветов для LCD
+#define COLOR_BG      ST77XX_BLACK
+#define COLOR_AXIS    0x7BEF // Светло-серый цвет для осей
+#define COLOR_TEXT    ST77XX_WHITE
+#define COLOR_GRAPH   ST77XX_CYAN
+#define COLOR_TEMP    ST77XX_ORANGE
+#define COLOR_PRESS   ST77XX_GREEN
+
+DisplayManager::DisplayManager()
+    : tft(&SPI, TFT_CS, TFT_DC, TFT_RST) {}
 
 void DisplayManager::init(uint8_t rotation) {
-    display.init(115200);
-    display.setRotation(rotation);
-    display.setFullWindow();
-    display.firstPage(); 
-    do { 
-        display.fillScreen(GxEPD_WHITE); 
-    } while (display.nextPage());
+    // Инициализация ST7789 (библиотека сама учитывает offset для матрицы 172x320)
+    tft.init(172, 320);
+    tft.setRotation(rotation);
+    tft.fillScreen(COLOR_BG);
 }
 
 void DisplayManager::setRotation(uint8_t rotation) {
-    display.setRotation(rotation);
-    display.setFullWindow();
-    display.firstPage(); 
-    do { 
-        display.fillScreen(GxEPD_WHITE); 
-    } while (display.nextPage());
+    tft.setRotation(rotation);
+    tft.fillScreen(COLOR_BG);
 }
 
 void DisplayManager::drawScreen(const WeatherModel& model) {
+    // На TFT мы можем просто заливать экран без циклов обновления страниц EPD
+    tft.fillScreen(COLOR_BG);
+
     if (model.display_mode == 0) {
         drawGraphMode(model);
     } else {
@@ -34,71 +37,69 @@ void DisplayManager::drawScreen(const WeatherModel& model) {
 }
 
 void DisplayManager::drawGraphMode(const WeatherModel& model) {
-    bool full_refresh = (++cycle_cnt % 20 == 0);
-    if (full_refresh) display.setFullWindow();
-    else display.setPartialWindow(0, 0, display.width(), display.height());
+    tft.setFont(&FreeSans9pt7b);
+    const int ml = 40, mr = 5, mt = 10, mb = 20;
+    const int gw = tft.width() - ml - mr;
+    const int gh = tft.height() - mt - mb;
+    const float P_MIN = 990.0f, P_MAX = 1030.0f, P_RANGE = P_MAX - P_MIN;
+    
+    auto pToY = [&](float p) -> int { 
+        return mt + gh - (int)(constrain((p - P_MIN) / P_RANGE, 0.0f, 1.0f) * gh); 
+    };
 
-    display.firstPage();
-    do {
-        display.fillScreen(GxEPD_WHITE);
-        display.setFont(&FreeSans9pt7b);
-        const int ml = 40, mr = 5, mt = 10, mb = 20;
-        const int gw = display.width() - ml - mr;
-        const int gh = display.height() - mt - mb;
-        const float P_MIN = 990.0f, P_MAX = 1030.0f, P_RANGE = P_MAX - P_MIN;
-        
-        auto pToY = [&](float p) -> int { 
-            return mt + gh - (int)(constrain((p - P_MIN) / P_RANGE, 0.0f, 1.0f) * gh); 
-        };
+    tft.drawLine(ml, mt + gh, ml + gw, mt + gh, COLOR_AXIS);
+    tft.drawLine(ml, mt, ml, mt + gh, COLOR_AXIS);
+    
+    tft.setTextColor(COLOR_AXIS);
+    for (float p = P_MIN; p <= P_MAX; p += 10) { 
+        tft.setCursor(2, pToY(p) + 4); 
+        tft.printf("%.0f", p); 
+    }
+    tft.setCursor(ml - 5, mt + gh + 15); tft.print("0");
+    tft.setCursor(ml + gw / 2 - 8, mt + gh + 15); tft.print("30m");
+    tft.setCursor(ml + gw - 15, mt + gh + 15); tft.print("1h");
 
-        display.drawLine(ml, mt + gh, ml + gw, mt + gh, GxEPD_BLACK);
-        display.drawLine(ml, mt, ml, mt + gh, GxEPD_BLACK);
+    uint32_t now_sec = millis() / 1000;
+    int prev_x = -1, prev_y = -1;
+    int count = model.getHistoryCount();
+    
+    for (int i = 0; i < count; i++) {
+        const DataPoint& dp = model.getHistory(i);
+        uint32_t age = now_sec - dp.ts;
+        if (age > 3600) continue;
         
-        for (float p = P_MIN; p <= P_MAX; p += 10) { 
-            display.setCursor(2, pToY(p) + 4); 
-            display.printf("%.0f", p); 
-        }
-        display.setCursor(ml - 5, mt + gh + 15); display.print("0");
-        display.setCursor(ml + gw / 2 - 8, mt + gh + 15); display.print("30m");
-        display.setCursor(ml + gw - 15, mt + gh + 15); display.print("1h");
-
-        uint32_t now_sec = millis() / 1000;
-        int prev_x = -1, prev_y = -1;
-        int count = model.getHistoryCount();
+        float x_norm = (float)age / 3600.0f;
+        int x = ml + (int)(x_norm * gw);
+        int y = pToY(dp.pressure);
         
-        for (int i = 0; i < count; i++) {
-            const DataPoint& dp = model.getHistory(i);
-            uint32_t age = now_sec - dp.ts;
-            if (age > 3600) continue;
-            
-            float x_norm = (float)age / 3600.0f;
-            int x = ml + (int)(x_norm * gw);
-            int y = pToY(dp.pressure);
-            
-            display.drawRect(x - 2, y - 2, 4, 4, GxEPD_BLACK);
-            if (prev_x != -1) display.drawLine(prev_x, prev_y, x, y, GxEPD_BLACK);
-            prev_x = x; prev_y = y;
-        }
-    } while (display.nextPage());
+        tft.fillRect(x - 2, y - 2, 4, 4, COLOR_GRAPH);
+        if (prev_x != -1) tft.drawLine(prev_x, prev_y, x, y, COLOR_GRAPH);
+        prev_x = x; prev_y = y;
+    }
 }
 
 void DisplayManager::drawCurrentMode(const WeatherModel& model) {
-    bool full_refresh = (++cycle_cnt % 10 == 0);
-    if (full_refresh) display.setFullWindow();
-    else display.setPartialWindow(0, 0, display.width(), display.height());
-
-    display.firstPage();
-    do {
-        display.fillScreen(GxEPD_WHITE);
-        display.setTextColor(GxEPD_BLACK);
-        display.setFont(&FreeSansBold12pt7b);
-        display.setCursor(20, 35);
-        display.printf("Temp: %.1f°C", model.web_temp);
-        display.setCursor(20, 75);
-        display.printf("Press: %.0f hPa", model.web_press);
-        display.setFont(&FreeSans9pt7b);
-        display.setCursor(20, 110);
-        display.print("Forecast: ");
-        display.println(model.web_forecast);
-    } while (display.nextPage());
+    tft.setFont(&FreeSansBold12pt7b);
+    
+    tft.setTextColor(COLOR_TEMP);
+    tft.setCursor(20, 45);
+    // Аккуратно отрисовываем символ градусов (шрифты FreeFonts часто не поддерживают расширенное ASCII)
+    tft.printf("Temp: %.1f", model.web_temp);
+    int cx = tft.getCursorX() + 4;
+    int cy = tft.getCursorY() - 16;
+    tft.drawCircle(cx, cy, 3, COLOR_TEMP);
+    tft.setCursor(cx + 8, tft.getCursorY());
+    tft.print("C");
+    
+    tft.setTextColor(COLOR_PRESS);
+    tft.setCursor(20, 90);
+    tft.printf("Press: %.0f hPa", model.web_press);
+    
+    tft.setFont(&FreeSans9pt7b);
+    tft.setTextColor(COLOR_TEXT);
+    tft.setCursor(20, 135);
+    tft.print("FC: ");
+    
+    tft.setTextColor(COLOR_GRAPH);
+    tft.println(model.web_forecast);
 }
