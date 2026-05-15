@@ -24,17 +24,17 @@ float WeatherModel::getTrend(float current_p) const {
 
 const char* WeatherModel::getZambrettiForecast(float press, float trend) const {
     if (press > 1020.0f) {
-        if (trend > TREND_THRESHOLD) return "Ясно, улучшение";
-        if (trend < -TREND_THRESHOLD) return "Переменная облачность";
-        return "Ясно, стабильно";
+        if (trend > TREND_THRESHOLD) return "Clear, improving";
+        if (trend < -TREND_THRESHOLD) return "Partly cloudy";
+        return "Clear, stable";
     } else if (press > 1000.0f) {
-        if (trend > TREND_THRESHOLD) return "Облачно, прояснения";
-        if (trend < -TREND_THRESHOLD) return "Возможен дождь";
-        return "Переменная облачность";
+        if (trend > TREND_THRESHOLD) return "Cloudy, clearing";
+        if (trend < -TREND_THRESHOLD) return "Possible rain";
+        return "Partly cloudy";
     } else {
-        if (trend < -TREND_THRESHOLD * 1.3f) return "Дождь, ухудшение";
-        if (trend > TREND_THRESHOLD * 1.3f) return "Облачно, улучшение";
-        return "Пасмурно";
+        if (trend < -TREND_THRESHOLD * 1.3f) return "Rain, worsening";
+        if (trend > TREND_THRESHOLD * 1.3f) return "Cloudy, improving";
+        return "Overcast";
     }
 }
 

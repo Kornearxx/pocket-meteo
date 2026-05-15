@@ -59,8 +59,8 @@ void DisplayManager::drawGraphMode(const WeatherModel& model) {
             display.printf("%.0f", p); 
         }
         display.setCursor(ml - 5, mt + gh + 15); display.print("0");
-        display.setCursor(ml + gw / 2 - 8, mt + gh + 15); display.print("30м");
-        display.setCursor(ml + gw - 15, mt + gh + 15); display.print("1ч");
+        display.setCursor(ml + gw / 2 - 8, mt + gh + 15); display.print("30m");
+        display.setCursor(ml + gw - 15, mt + gh + 15); display.print("1h");
 
         uint32_t now_sec = millis() / 1000;
         int prev_x = -1, prev_y = -1;
@@ -98,7 +98,7 @@ void DisplayManager::drawCurrentMode(const WeatherModel& model) {
         display.printf("Press: %.0f hPa", model.web_press);
         display.setFont(&FreeSans9pt7b);
         display.setCursor(20, 110);
-        display.print("Прогноз: ");
+        display.print("Forecast: ");
         display.println(model.web_forecast);
     } while (display.nextPage());
 }

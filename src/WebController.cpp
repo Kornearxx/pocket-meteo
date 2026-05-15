@@ -7,9 +7,12 @@ WebController::WebController() : server(80), AP_IP(192, 168, 4, 1) {}
 void WebController::begin(WeatherModel* model) {
     weatherModel = model;
 
+    WiFi.mode(WIFI_OFF); // Надежно выключаем Wi-Fi перед перенастройкой (вместо disconnect)
+    delay(100);
     WiFi.mode(WIFI_AP); 
-    WiFi.softAP(AP_SSID);
-    WiFi.softAPConfig(AP_IP, AP_IP, IPAddress(255, 255, 255, 0));
+    WiFi.softAP(AP_SSID); // В ESP32 интерфейс AP запускается ДО конфигурации IP
+    delay(100);
+    WiFi.softAPConfig(AP_IP, AP_IP, IPAddress(255, 255, 255, 0)); // Теперь применяем IP
     dnsServer.start(53, "*", AP_IP);
 
     setupRoutes();
@@ -203,14 +206,14 @@ function update(){
     document.getElementById('t').textContent=d.temp.toFixed(1);
     document.getElementById('p').textContent=d.press.toFixed(0);
     let fcText = d.forecast;
-    document.getElementById('fc').textContent="Прогноз: "+fcText;
+    document.getElementById('fc').textContent="Forecast: "+fcText;
     document.getElementById('interval-disp').textContent="⏱ "+(d.interval/1000)+" сек";
     document.getElementById('int-slider').value=d.interval/1000;
 
     let rotText = d.rot==1 ? "📐 Нормально" : "📐 Перевёрнуто";
     document.getElementById('orient').textContent=rotText;
 
-    if(fcText!==prevFC) { toast("🌤 "+fcText, fcText.includes("Дождь")||fcText.includes("улучшение")?'warn':'info'); prevFC=fcText; }
+    if(fcText!==prevFC) { toast("🌤 "+fcText, fcText.includes("Rain")||fcText.includes("improving")?'warn':'info'); prevFC=fcText; }
     if(d.rot!==prevRot) { toast(rotText, 'ok'); prevRot=d.rot; }
 
     lastData=d.hist; drawChart(lastData);

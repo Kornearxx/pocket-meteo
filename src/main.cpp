@@ -8,6 +8,7 @@
 #include <SPI.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BMP3XX.h>
+#include <Adafruit_NeoPixel.h>
 
 #include "Config.h"
 #include "WeatherModel.h"
@@ -18,6 +19,7 @@ WeatherModel weatherModel;
 DisplayManager displayManager;
 WebController webController;
 Adafruit_BMP3XX bmp;
+Adafruit_NeoPixel rgbLed(1, RGB_LED_PIN, NEO_GRB + NEO_KHZ800);
 
 // --- Tilt ---
 bool tilt_stable = false;
@@ -60,6 +62,10 @@ void setup() {
     Serial.println("\n=== BOOT: Pocket Station v5 (Modular) ===");
     
     pinMode(TILT_PIN, INPUT_PULLUP);
+    
+    rgbLed.begin();
+    rgbLed.show(); // Выключаем RGB-диод при старте
+
     Wire.begin(BMP_SDA, BMP_SCL);
     SPI.begin(EPD_SCLK, EPD_MISO, EPD_MOSI, EPD_CS);
     
@@ -83,6 +89,20 @@ void setup() {
 }
 
 void loop() {
+    // Индикатор работы (мигает каждые 500 мс)
+    static uint32_t led_last_ms = 0;
+    static bool led_state = false;
+    if (millis() - led_last_ms >= 500) {
+        led_last_ms = millis();
+        led_state = !led_state;
+        if (led_state) {
+            rgbLed.setPixelColor(0, rgbLed.Color(0, 10, 0)); // Тускло-зеленый цвет (R=0, G=10, B=0)
+        } else {
+            rgbLed.setPixelColor(0, rgbLed.Color(0, 0, 0));  // Выключен
+        }
+        rgbLed.show();
+    }
+
     webController.handleClient();
     checkTiltSensor();
 
@@ -107,7 +127,7 @@ void loop() {
             
             displayManager.drawScreen(weatherModel);
             
-            Serial.printf("P=%.0f | T=%.1f | Trend=%.2f | FC: %s | Rot: %d | Int: %dms\n", 
+            Serial.printf("P=%.0f | T=%.1f | Trend=%.2f | FC: %s | Rot: %d | Int: %ums\n", 
                           sea, t, trend, weatherModel.web_forecast, 
                           weatherModel.current_rotation, weatherModel.update_interval_ms);
         }
