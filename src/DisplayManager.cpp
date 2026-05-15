@@ -47,8 +47,11 @@ void DisplayManager::drawGraphMode(const WeatherModel& model) {
     uint32_t now_sec = millis() / 1000;
     int count = model.getHistoryCount();
 
-    // Расчет "окна просмотра" (точка настоящего идет слева направо)
-    uint32_t logical_now = (now_sec < window) ? window : now_sec;
+    // Расчет "окна просмотра" (прыжок на 1 минуту вперед при достижении края)
+    uint32_t logical_now = window;
+    if (now_sec > window) {
+        logical_now = window + ((now_sec - window - 1) / 60 + 1) * 60;
+    }
     uint32_t max_offset = logical_now - window;
     if (offset > max_offset) offset = max_offset; // Блокируем скролл в пустоту
     uint32_t view_end_time = logical_now - offset;
