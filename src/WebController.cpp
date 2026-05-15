@@ -65,7 +65,8 @@ void WebController::setupRoutes() {
             String body = server.arg("plain");
             int p = body.indexOf("\"ms\":");
             if(p >= 0) {
-                uint32_t ms = body.substring(p+4, body.indexOf(",", p)).toInt();
+                    int endP = body.indexOf("}", p);
+                    uint32_t ms = body.substring(p + 5, endP > 0 ? endP : body.length()).toInt();
                 if(ms >= 1000 && ms <= 60000) {
                     weatherModel->update_interval_ms = ms;
                 }
@@ -100,19 +101,31 @@ const char* HTML_PAGE = R"rawliteral(
 <style>
   :root { --bg: #f4f4f9; --card: #fff; --text: #333; --accent: #3498db; --warn: #e67e22; }
   body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);margin:0;padding:15px;text-align:center;color:var(--text)}
-  .wrap{max-width:360px;margin:0 auto}
-  h1{margin:0 0 10px;font-size:20px}
-  .card{background:var(--card);border-radius:12px;padding:15px;margin:10px 0;box-shadow:0 3px 6px rgba(0,0,0,.1)}
+  .wrap{max-width:850px;margin:0 auto}
+  h1{margin:0 0 15px;font-size:24px}
+  .card{background:var(--card);border-radius:12px;padding:15px;box-shadow:0 3px 6px rgba(0,0,0,.1)}
   .row{display:flex;justify-content:space-around;align-items:center}
-  .val{font-size:28px;font-weight:bold}
-  .unit{font-size:14px;color:#7f8c8d}
-  .fc{font-size:16px;color:var(--warn);font-weight:600}
-  .status-bar{font-size:12px;color:#95a5a6;display:flex;justify-content:space-between;margin:8px 0}
-  .ctrl{margin:10px 0}
-  input[type=range]{width:100%}
-  .btn{display:inline-block;padding:10px 20px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;color:#fff;margin:5px}
+  .val{font-size:32px;font-weight:bold}
+  .unit{font-size:16px;color:#7f8c8d}
+  .fc{font-size:18px;color:var(--warn);font-weight:600;margin-top:15px;padding-top:15px;border-top:1px solid #eee}
+  .status-bar{font-size:13px;color:#95a5a6;display:flex;justify-content:space-between;margin-bottom:15px}
+  input[type=range]{width:100%;margin-top:10px}
+  .btn{display:inline-block;padding:10px 15px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;color:#fff;margin:5px;flex:1}
   .btn-log{background:#3498db} .btn-mode{background:#2ecc71}
-  canvas{background:#fff;width:100%;height:200px;border-radius:10px;box-shadow:0 2px 4px rgba(0,0,0,.1);margin:10px 0}
+  .btn-container{display:flex;gap:10px;margin-top:10px}
+  
+  /* Адаптивная сетка (Стекинг для вертикального смартфона, Колонки для горизонтального/ПК) */
+  .main-container{display:flex;flex-direction:column;gap:15px}
+  .left-panel{display:flex;flex-direction:column;gap:15px;flex:1}
+  .right-panel{flex:1.5;display:flex;flex-direction:column}
+  .chart-container{background:var(--card);border-radius:12px;padding:15px;box-shadow:0 3px 6px rgba(0,0,0,.1);flex:1;display:flex;flex-direction:column}
+  canvas{width:100%;flex:1;min-height:220px}
+  
+  @media(min-width: 600px) {
+    .main-container{flex-direction:row;text-align:left}
+    body{padding:30px}
+  }
+  
   #toast-container{position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:999;display:flex;flex-direction:column;gap:8px}
   .toast{padding:10px 15px;border-radius:8px;color:#fff;font-size:13px;opacity:0;transform:translateY(-10px);transition:all 0.3s;box-shadow:0 3px 6px rgba(0,0,0,.2)}
   .toast.show{opacity:1;transform:translateY(0)}
@@ -121,36 +134,47 @@ const char* HTML_PAGE = R"rawliteral(
 </head>
 <body>
 <div class="wrap">
-<h1>Pocket Weather</h1>
+<h1>🌤 Pocket Weather</h1>
 <div class="status-bar">
   <span id="orient">📐 Ориентация: --</span>
   <span id="interval-disp">⏱ 3 сек</span>
 </div>
 
-<div class="card">
-  <div class="row">
-    <div><div style="font-size:12px;color:#95a5a6">Температура</div><div class="val"><span id="t">--</span><span class="unit">°C</span></div></div>
-    <div><div style="font-size:12px;color:#95a5a6">Давление</div><div class="val"><span id="p">--</span><span class="unit">гПа</span></div></div>
+<div class="main-container">
+  <div class="left-panel">
+    <div class="card">
+      <div class="row">
+        <div style="text-align:center"><div style="font-size:13px;color:#95a5a6">Температура</div><div class="val"><span id="t">--</span><span class="unit">°C</span></div></div>
+        <div style="text-align:center"><div style="font-size:13px;color:#95a5a6">Давление</div><div class="val"><span id="p">--</span><span class="unit">гПа</span></div></div>
+      </div>
+      <div class="fc" id="fc">Прогноз: --</div>
+    </div>
+    
+    <div class="card">
+      <label style="font-size:13px;color:#7f8c8d;font-weight:bold">Скорость обновления данных</label>
+      <input type="range" id="int-slider" min="1" max="30" value="3" step="1">
+    </div>
+    
+    <div class="btn-container">
+      <button class="btn btn-mode" onclick="toggleMode()">🔄 Режим экрана</button>
+      <button class="btn btn-log" onclick="downloadLog()">📥 Лог CSV</button>
+    </div>
   </div>
-  <div class="fc" id="fc" style="margin-top:8px">Прогноз: --</div>
-</div>
-
-<canvas id="chart" width="320" height="200"></canvas>
-
-<div class="ctrl">
-  <label>Скорость обновления: <input type="range" id="int-slider" min="1" max="30" value="3" step="1"></label>
-</div>
-
-<div>
-  <button class="btn btn-mode" onclick="toggleMode()">🔄 Режим e-Ink</button>
-  <button class="btn btn-log" onclick="downloadLog()">📥 Лог CSV</button>
+  
+  <div class="right-panel">
+    <div class="chart-container">
+      <div style="font-size:13px;color:#95a5a6;margin-bottom:10px;text-align:center;font-weight:bold">График давления</div>
+      <canvas id="chart"></canvas>
+    </div>
+  </div>
 </div>
 </div>
 
 <div id="toast-container"></div>
 
 <script>
-const ctx=document.getElementById('chart').getContext('2d');
+const canvas=document.getElementById('chart');
+const ctx=canvas.getContext('2d');
 let prevFC="", prevRot="";
 let lastData=[];
 
@@ -163,9 +187,13 @@ function toast(msg, type='info'){
 }
 
 function drawChart(data){
-  // ... HTML and Script kept identical to Original ...
   if(!data.length)return;
-  const W=ctx.canvas.width, H=ctx.canvas.height;
+  
+  // Динамически подгоняем внутреннее разрешение канваса под CSS размер
+  canvas.width = canvas.clientWidth;
+  canvas.height = canvas.clientHeight;
+  
+  const W=canvas.width, H=canvas.height;
   const pad={l:40,r:10,t:10,b:20}, gw=W-pad.l-pad.r, gh=H-pad.t-pad.b;
   let vals=data.map(d=>d.p);
   let minP=Math.min(...vals), maxP=Math.max(...vals);
@@ -206,15 +234,32 @@ function update(){
     document.getElementById('t').textContent=d.temp.toFixed(1);
     document.getElementById('p').textContent=d.press.toFixed(0);
     let fcText = d.forecast;
-    document.getElementById('fc').textContent="Forecast: "+fcText;
-    document.getElementById('interval-disp').textContent="⏱ "+(d.interval/1000)+" сек";
-    document.getElementById('int-slider').value=d.interval/1000;
+    
+    // Локализация Замбретти на русский
+    const fcMap = {
+      "Clear, improving": "Ясно, улучшение ☀️",
+      "Partly cloudy": "Переменная облачность ⛅️",
+      "Clear, stable": "Ясно, стабильно ☀️",
+      "Cloudy, clearing": "Облачно, прояснения 🌥",
+      "Possible rain": "Возможен дождь 🌦",
+      "Rain, worsening": "Дождь, ухудшение 🌧",
+      "Cloudy, improving": "Облачно, улучшение 🌥",
+      "Overcast": "Пасмурно ☁️"
+    };
+    let fcRu = fcMap[fcText] || fcText;
+    document.getElementById('fc').innerHTML="Прогноз:<br><span style='color:#3498db;font-size:22px'>" + fcRu + "</span>";
+    
+    if (document.activeElement !== document.getElementById('int-slider')) {
+      document.getElementById('interval-disp').textContent="⏱ "+(d.interval/1000)+" сек";
+      document.getElementById('int-slider').value=d.interval/1000;
+    }
 
     let rotText = d.rot==1 ? "📐 Нормально" : "📐 Перевёрнуто";
     document.getElementById('orient').textContent=rotText;
 
-    if(fcText!==prevFC) { toast("🌤 "+fcText, fcText.includes("Rain")||fcText.includes("improving")?'warn':'info'); prevFC=fcText; }
-    if(d.rot!==prevRot) { toast(rotText, 'ok'); prevRot=d.rot; }
+    if(fcText!==prevFC && prevFC!=="") { toast(fcRu, fcText.includes("Rain")||fcText.includes("worsening")?'warn':'info'); }
+    if(d.rot!==prevRot && prevRot!=="") { toast(rotText, 'ok'); }
+    prevFC=fcText; prevRot=d.rot;
 
     lastData=d.hist; drawChart(lastData);
   });
@@ -223,10 +268,17 @@ function update(){
 function toggleMode(){fetch('/toggle').then(r=>r.json()).then(d=>update());}
 function downloadLog(){window.location.href='/log';}
 
-document.getElementById('int-slider').addEventListener('input', e=>{
-  let s=parseInt(e.target.value);
-  fetch('/api/interval',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ms:s*1000})}).then(()=>{});
+const slider = document.getElementById('int-slider');
+slider.addEventListener('input', e => {
+  document.getElementById('interval-disp').textContent = "⏱ " + e.target.value + " сек";
 });
+slider.addEventListener('change', e => {
+  let s = parseInt(e.target.value);
+  fetch('/api/interval', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ms:s*1000})});
+});
+
+// Перерисовка графика при перевороте экрана устройства
+window.addEventListener('resize', () => { if(lastData.length) drawChart(lastData); });
 
 setInterval(update,2500); update();
 </script>

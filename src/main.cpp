@@ -7,7 +7,7 @@
 #include <Wire.h>
 #include <SPI.h>
 #include <Adafruit_Sensor.h>
-#include <Adafruit_BMP3XX.h>
+#include <Adafruit_BMP280.h>
 #include <Adafruit_NeoPixel.h>
 
 #include "Config.h"
@@ -18,7 +18,7 @@
 WeatherModel weatherModel;
 DisplayManager displayManager;
 WebController webController;
-Adafruit_BMP3XX bmp;
+Adafruit_BMP280 bmp(&Wire); // Явно передаем нашу шину I2C
 Adafruit_NeoPixel rgbLed(1, RGB_LED_PIN, NEO_GRB + NEO_KHZ800);
 
 // --- Tilt ---
@@ -26,12 +26,17 @@ bool tilt_stable = false;
 bool tilt_pending = false;
 uint32_t tilt_last_ms = 0;
 
-bool readBMP390(float* out_temp, float* out_press_hpa) {
+bool readBMP280(float* out_temp, float* out_press_hpa) {
     float t_sum = 0, p_sum = 0;
     for (uint8_t i = 0; i < 3; i++) {
-        if (!bmp.performReading()) return false;
-        t_sum += bmp.temperature;
-        p_sum += bmp.pressure / 100.0f;
+        float t = bmp.readTemperature();
+        float p = bmp.readPressure();
+        
+        // Защита от ошибочных данных (битые кадры I2C или обрыв линии)
+        if (isnan(t) || isnan(p) || p == 0) return false;
+        
+        t_sum += t;
+        p_sum += p / 100.0f; // Перевод Паскалей (Pa) в Гектопаскали (hPa)
         delay(10);
     }
     *out_temp = t_sum / 3;
@@ -69,15 +74,19 @@ void setup() {
     Wire.begin(BMP_SDA, BMP_SCL);
     SPI.begin(EPD_SCLK, EPD_MISO, EPD_MOSI, EPD_CS);
     
-    Serial.print("[BMP] ");
-    if (bmp.begin_I2C(BMP_ADDR, &Wire)) {
-        bmp.setTemperatureOversampling(BMP3_OVERSAMPLING_8X);
-        bmp.setPressureOversampling(BMP3_OVERSAMPLING_4X);
-        bmp.setIIRFilterCoeff(BMP3_IIR_FILTER_COEFF_3);
-        bmp.setOutputDataRate(BMP3_ODR_50_HZ);
+    Serial.print("[BMP280] ");
+    // Fallback: пробуем сначала адрес из конфига (0x77), если не найден - пробуем 0x76
+    if (bmp.begin(BMP_ADDR) || bmp.begin(0x76)) {
+        // Профессиональные настройки для метеостанции (Indoor Navigation / Weather):
+        // Максимальная фильтрация давления от аэродинамического шума (двери, ветер).
+        bmp.setSampling(Adafruit_BMP280::MODE_NORMAL,     /* Постоянные измерения */
+                        Adafruit_BMP280::SAMPLING_X2,     /* Оверсэмплинг температуры x2 */
+                        Adafruit_BMP280::SAMPLING_X16,    /* Оверсэмплинг давления x16 (ультравысокий) */
+                        Adafruit_BMP280::FILTER_X16,      /* Мощный IIR-фильтр 16 */
+                        Adafruit_BMP280::STANDBY_MS_500); /* Обновление данных раз в 500 мс */
         Serial.println("OK");
     } else {
-        Serial.println("FAIL");
+        Serial.println("FAIL (Check wiring & I2C Address)");
     }
     
     Serial.print("[EPD] ");
@@ -116,7 +125,7 @@ void loop() {
         last_update = millis();
         
         float t = 0, p = 0;
-        if (readBMP390(&t, &p)) {
+        if (readBMP280(&t, &p)) {
             float sea = weatherModel.calcSeaLevelPressure(p, t, ALTITUDE_M);
             float trend = weatherModel.getTrend(sea);
             
