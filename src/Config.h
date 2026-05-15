@@ -21,6 +21,7 @@ constexpr uint8_t TFT_BL      = 22; // Пин управления подсве�
 constexpr uint8_t TFT_SCLK    = 7;
 constexpr uint8_t TFT_MOSI    = 6;
 constexpr int8_t  TFT_MISO    = -1;
+constexpr uint8_t TFT_BRIGHTNESS = 75; // Яркость экрана (0-255). Снижена для предотвращения нагрева
 
 // --- Настройки ---
 constexpr float ALTITUDE_M         = 150.0f;

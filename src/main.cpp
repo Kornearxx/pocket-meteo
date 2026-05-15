@@ -75,7 +75,7 @@ void setup() {
 
     // Включаем подсветку TFT дисплея
     pinMode(TFT_BL, OUTPUT);
-    digitalWrite(TFT_BL, HIGH);
+    analogWrite(TFT_BL, TFT_BRIGHTNESS);
 
     Wire.begin(BMP_SDA, BMP_SCL);
     SPI.begin(TFT_SCLK, TFT_MISO, TFT_MOSI, TFT_CS);
@@ -105,20 +105,6 @@ void setup() {
 }
 
 void loop() {
-    // Индикатор работы (мигает каждые 500 мс)
-    static uint32_t led_last_ms = 0;
-    static bool led_state = false;
-    if (millis() - led_last_ms >= 500) {
-        led_last_ms = millis();
-        led_state = !led_state;
-        if (led_state) {
-            rgbLed.setPixelColor(0, rgbLed.Color(0, 10, 0)); // Тускло-зеленый цвет (R=0, G=10, B=0)
-        } else {
-            rgbLed.setPixelColor(0, rgbLed.Color(0, 0, 0));  // Выключен
-        }
-        rgbLed.show();
-    }
-
     webController.handleClient();
     checkTiltSensor();
     inputManager.handleInput();
