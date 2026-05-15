@@ -37,10 +37,21 @@ void InputManager::handleInput() {
         current_state = JoyState::RIGHT;
     }
 
+    bool trigger_action = false;
+    
     if (current_state != last_joy_state) {
         last_joy_state = current_state;
         joy_last_ms = millis();
+        trigger_action = true;
+    } else if (current_state == JoyState::LEFT || current_state == JoyState::RIGHT) {
+        // Плавный скролл при удержании джойстика
+        if (millis() - joy_last_ms >= 150) { // Скорость прокрутки: шаг каждые 150 мс
+            joy_last_ms = millis();
+            trigger_action = true;
+        }
+    }
 
+    if (trigger_action && current_state != JoyState::NONE) {
         // Переключение экранов только движением Вверх
         if (current_state == JoyState::UP) {
             weatherModel->display_mode = (weatherModel->display_mode == 0) ? 1 : 0;
