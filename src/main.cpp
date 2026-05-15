@@ -14,10 +14,12 @@
 #include "WeatherModel.h"
 #include "DisplayManager.h"
 #include "WebController.h"
+#include "InputManager.h"
 
 WeatherModel weatherModel;
 DisplayManager displayManager;
 WebController webController;
+InputManager inputManager;
 Adafruit_BMP280 bmp(&Wire); // Явно передаем нашу шину I2C
 Adafruit_NeoPixel rgbLed(1, RGB_LED_PIN, NEO_RGB + NEO_KHZ800); // Используем NEO_RGB, чтобы цвета не путались на этой плате
 
@@ -98,6 +100,7 @@ void setup() {
     Serial.println("OK");
 
     webController.begin(&weatherModel);
+    inputManager.begin(&weatherModel, &displayManager);
     Serial.println("[READY]");
 }
 
@@ -118,6 +121,7 @@ void loop() {
 
     webController.handleClient();
     checkTiltSensor();
+    inputManager.handleInput();
 
     if (displayManager.needsRedraw()) { 
         displayManager.drawScreen(weatherModel); 
