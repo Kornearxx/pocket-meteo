@@ -19,7 +19,7 @@ WeatherModel weatherModel;
 DisplayManager displayManager;
 WebController webController;
 Adafruit_BMP280 bmp(&Wire); // Явно передаем нашу шину I2C
-Adafruit_NeoPixel rgbLed(1, RGB_LED_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel rgbLed(1, RGB_LED_PIN, NEO_RGB + NEO_KHZ800); // Используем NEO_RGB, чтобы цвета не путались на этой плате
 
 // --- Tilt ---
 bool tilt_stable = false;
@@ -132,13 +132,24 @@ void loop() {
         if (readBMP280(&t, &p)) {
             float sea = weatherModel.calcSeaLevelPressure(p, t, ALTITUDE_M);
             float trend = weatherModel.getTrend(sea);
+            const char* fc = weatherModel.getZambrettiForecast(sea, trend);
+            
+            // Проверяем, изменились ли параметры (округляем до отображаемых на экране значений)
+            static uint8_t last_mode = 255;
+            bool changed = (abs((int)(weatherModel.web_temp * 10) - (int)(t * 10)) > 0) ||
+                           (abs((int)weatherModel.web_press - (int)sea) > 0) ||
+                           (weatherModel.web_forecast != fc) ||
+                           (last_mode != weatherModel.display_mode);
+            last_mode = weatherModel.display_mode;
             
             weatherModel.web_temp = t; 
             weatherModel.web_press = sea;
-            weatherModel.web_forecast = weatherModel.getZambrettiForecast(sea, trend);
+            weatherModel.web_forecast = fc;
             weatherModel.pushDataPoint(sea, t);
             
-            displayManager.drawScreen(weatherModel);
+            if (changed) {
+                displayManager.setNeedsRedraw();
+            }
             
             Serial.printf("P=%.0f | T=%.1f | Trend=%.2f | FC: %s | Rot: %d | Int: %ums\n", 
                           sea, t, trend, weatherModel.web_forecast, 

@@ -56,8 +56,8 @@ void DisplayManager::drawGraphMode(const WeatherModel& model) {
         tft.printf("%.0f", p); 
     }
     tft.setCursor(ml - 5, mt + gh + 15); tft.print("0");
-    tft.setCursor(ml + gw / 2 - 8, mt + gh + 15); tft.print("30m");
-    tft.setCursor(ml + gw - 15, mt + gh + 15); tft.print("1h");
+    tft.setCursor(ml + gw / 2 - 8, mt + gh + 15); tft.print("15m");
+    tft.setCursor(ml + gw - 15, mt + gh + 15); tft.print("30m");
 
     uint32_t now_sec = millis() / 1000;
     int prev_x = -1, prev_y = -1;
@@ -66,9 +66,9 @@ void DisplayManager::drawGraphMode(const WeatherModel& model) {
     for (int i = 0; i < count; i++) {
         const DataPoint& dp = model.getHistory(i);
         uint32_t age = now_sec - dp.ts;
-        if (age > 3600) continue;
+        if (age > 1800) continue; // Изменили промежуток отображения на 30 минут
         
-        float x_norm = (float)age / 3600.0f;
+        float x_norm = (float)age / 1800.0f;
         int x = ml + (int)(x_norm * gw);
         int y = pToY(dp.pressure);
         
