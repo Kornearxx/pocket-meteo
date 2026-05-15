@@ -29,6 +29,7 @@ public:
     uint32_t update_interval_ms = 3000;
     uint8_t display_mode = 0; // 0: График, 1: Данные
     uint8_t current_rotation = 1;
+    uint32_t graph_offset_sec = 0; // Сдвиг графика для просмотра истории
 
 private:
     DataPoint history[MAX_BUFFER_SIZE];

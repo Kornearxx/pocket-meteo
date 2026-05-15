@@ -21,15 +21,19 @@ void InputManager::handleInput() {
 
     JoyState current_state = JoyState::NONE;
 
+    // Проверяем, находится ли стик по центру по конкретной оси
+    bool x_centered = (x > JOY_CENTER_LO && x < JOY_CENTER_HI);
+    bool y_centered = (y > JOY_CENTER_LO && y < JOY_CENTER_HI);
+
     if (btn) {
         current_state = JoyState::PRESS;
-    } else if (y < JOY_THRESH_LO) {
+    } else if (y < JOY_THRESH_LO && x_centered) {
         current_state = JoyState::UP;
-    } else if (y > JOY_THRESH_HI) {
+    } else if (y > JOY_THRESH_HI && x_centered) {
         current_state = JoyState::DOWN;
-    } else if (x < JOY_THRESH_LO) {
+    } else if (x < JOY_THRESH_LO && y_centered) {
         current_state = JoyState::LEFT;
-    } else if (x > JOY_THRESH_HI) {
+    } else if (x > JOY_THRESH_HI && y_centered) {
         current_state = JoyState::RIGHT;
     }
 
@@ -41,8 +45,20 @@ void InputManager::handleInput() {
         if (current_state == JoyState::UP) {
             weatherModel->display_mode = (weatherModel->display_mode == 0) ? 1 : 0;
             displayManager->setNeedsRedraw();
-        } else if (current_state == JoyState::DOWN || current_state == JoyState::LEFT || current_state == JoyState::RIGHT) {
-            Serial.println("[JOY] Down/Left/Right - задел для будущего меню");
+        } else if (current_state == JoyState::RIGHT) {
+            if (weatherModel->display_mode == 0) { // Только для графика
+                weatherModel->graph_offset_sec += 60; // Прокрутка на 1 мин в прошлое
+                if (weatherModel->graph_offset_sec > 3000) weatherModel->graph_offset_sec = 3000;
+                displayManager->setNeedsRedraw();
+            }
+        } else if (current_state == JoyState::LEFT) {
+            if (weatherModel->display_mode == 0) {
+                if (weatherModel->graph_offset_sec >= 60) weatherModel->graph_offset_sec -= 60; // К настоящему
+                else weatherModel->graph_offset_sec = 0;
+                displayManager->setNeedsRedraw();
+            }
+        } else if (current_state == JoyState::DOWN) {
+            Serial.println("[JOY] Down - задел для будущего меню");
         } else if (current_state == JoyState::PRESS) {
             Serial.println("[JOY] Pressed - вызов меню или подтверждение");
         }

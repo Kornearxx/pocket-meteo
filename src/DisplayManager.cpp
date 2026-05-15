@@ -38,43 +38,78 @@ void DisplayManager::drawScreen(const WeatherModel& model) {
 
 void DisplayManager::drawGraphMode(const WeatherModel& model) {
     tft.setFont(&FreeSans9pt7b);
-    const int ml = 40, mr = 5, mt = 10, mb = 20;
+    const int ml = 45, mr = 5, mt = 10, mb = 20; // Увеличили ml для вмещения десятых долей
     const int gw = tft.width() - ml - mr;
     const int gh = tft.height() - mt - mb;
-    const float P_MIN = 990.0f, P_MAX = 1030.0f, P_RANGE = P_MAX - P_MIN;
     
+    uint32_t offset = model.graph_offset_sec;
+    uint32_t window = 600; // Окно 10 минут
+    uint32_t now_sec = millis() / 1000;
+    int count = model.getHistoryCount();
+
+    // 1. Поиск мин/макс значений в видимом окне (Pass 1)
+    float min_p = 9999.0f, max_p = -9999.0f;
+    bool has_data = false;
+    for (int i = 0; i < count; i++) {
+        const DataPoint& dp = model.getHistory(i);
+        if (now_sec < dp.ts) continue;
+        uint32_t age = now_sec - dp.ts;
+        if (age >= offset && age <= offset + window) {
+            if (dp.pressure < min_p) min_p = dp.pressure;
+            if (dp.pressure > max_p) max_p = dp.pressure;
+            has_data = true;
+        }
+    }
+    if (!has_data) {
+        min_p = model.web_press > 0 ? model.web_press : 1010.0f;
+        max_p = min_p;
+    }
+
+    // 2. Расчет динамического масштаба "в половину экрана"
+    float data_range = max_p - min_p;
+    if (data_range < 1.0f) data_range = 1.0f; // Защита от слишком сильного зума
+    
+    float mid_p = (max_p + min_p) / 2.0f;
+    float P_RANGE = data_range * 2.0f; // Данные займут ровно половину оси
+    float P_MIN = mid_p - P_RANGE / 2.0f;
+    float P_MAX = mid_p + P_RANGE / 2.0f;
+
     auto pToY = [&](float p) -> int { 
         return mt + gh - (int)(constrain((p - P_MIN) / P_RANGE, 0.0f, 1.0f) * gh); 
     };
 
+    // 3. Отрисовка осей и подписей
     tft.drawLine(ml, mt + gh, ml + gw, mt + gh, COLOR_AXIS);
     tft.drawLine(ml, mt, ml, mt + gh, COLOR_AXIS);
     
     tft.setTextColor(COLOR_AXIS);
-    for (float p = P_MIN; p <= P_MAX; p += 10) { 
-        tft.setCursor(2, pToY(p) + 4); 
-        tft.printf("%.0f", p); 
-    }
-    tft.setCursor(ml - 5, mt + gh + 15); tft.print("0");
-    tft.setCursor(ml + gw / 2 - 8, mt + gh + 15); tft.print("15m");
-    tft.setCursor(ml + gw - 15, mt + gh + 15); tft.print("30m");
+    tft.setCursor(0, pToY(P_MAX) + 12); tft.printf("%.1f", P_MAX);
+    tft.setCursor(0, pToY(mid_p) + 5);  tft.printf("%.1f", mid_p);
+    tft.setCursor(0, pToY(P_MIN) - 4);  tft.printf("%.1f", P_MIN);
 
-    uint32_t now_sec = millis() / 1000;
+    tft.setCursor(ml - 10, mt + gh + 15); tft.printf("%dm", offset / 60);
+    tft.setCursor(ml + gw / 2 - 12, mt + gh + 15); tft.printf("%dm", (offset + window / 2) / 60);
+    tft.setCursor(ml + gw - 20, mt + gh + 15); tft.printf("%dm", (offset + window) / 60);
+
+    // 4. Отрисовка точек графика (Pass 2)
     int prev_x = -1, prev_y = -1;
-    int count = model.getHistoryCount();
-    
     for (int i = 0; i < count; i++) {
         const DataPoint& dp = model.getHistory(i);
+        if (now_sec < dp.ts) continue;
         uint32_t age = now_sec - dp.ts;
-        if (age > 1800) continue; // Изменили промежуток отображения на 30 минут
         
-        float x_norm = (float)age / 1800.0f;
-        int x = ml + (int)(x_norm * gw);
-        int y = pToY(dp.pressure);
-        
-        tft.fillRect(x - 2, y - 2, 4, 4, COLOR_GRAPH);
-        if (prev_x != -1) tft.drawLine(prev_x, prev_y, x, y, COLOR_GRAPH);
-        prev_x = x; prev_y = y;
+        if (age >= offset && age <= offset + window) {
+            float x_norm = (float)(age - offset) / (float)window;
+            int x = ml + (int)(x_norm * gw);
+            int y = pToY(dp.pressure);
+            
+            tft.fillRect(x - 2, y - 2, 4, 4, COLOR_GRAPH);
+            if (prev_x != -1) tft.drawLine(prev_x, prev_y, x, y, COLOR_GRAPH);
+            prev_x = x; 
+            prev_y = y;
+        } else {
+            prev_x = -1; // Разрываем линию соединений вне окна
+        }
     }
 }
 
