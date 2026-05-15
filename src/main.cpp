@@ -137,7 +137,8 @@ void loop() {
             weatherModel.web_forecast = fc;
             weatherModel.pushDataPoint(sea, t);
             
-            if (changed) {
+            // В режиме графика (0) перерисовываем всегда, чтобы линия плавно скользила
+            if (changed || weatherModel.display_mode == 0) {
                 displayManager.setNeedsRedraw();
             }
             

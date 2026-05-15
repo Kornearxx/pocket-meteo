@@ -47,14 +47,19 @@ void DisplayManager::drawGraphMode(const WeatherModel& model) {
     uint32_t now_sec = millis() / 1000;
     int count = model.getHistoryCount();
 
+    // Расчет "окна просмотра" (точка настоящего идет слева направо)
+    uint32_t logical_now = (now_sec < window) ? window : now_sec;
+    uint32_t max_offset = logical_now - window;
+    if (offset > max_offset) offset = max_offset; // Блокируем скролл в пустоту
+    uint32_t view_end_time = logical_now - offset;
+    uint32_t view_start_time = view_end_time - window;
+
     // 1. Поиск мин/макс значений в видимом окне (Pass 1)
     float min_p = 9999.0f, max_p = -9999.0f;
     bool has_data = false;
     for (int i = 0; i < count; i++) {
         const DataPoint& dp = model.getHistory(i);
-        if (now_sec < dp.ts) continue;
-        uint32_t age = now_sec - dp.ts;
-        if (age >= offset && age <= offset + window) {
+        if (dp.ts >= view_start_time && dp.ts <= view_end_time) {
             if (dp.pressure < min_p) min_p = dp.pressure;
             if (dp.pressure > max_p) max_p = dp.pressure;
             has_data = true;
@@ -87,19 +92,18 @@ void DisplayManager::drawGraphMode(const WeatherModel& model) {
     tft.setCursor(0, pToY(mid_p) + 5);  tft.printf("%.1f", mid_p);
     tft.setCursor(0, pToY(P_MIN) - 4);  tft.printf("%.1f", P_MIN);
 
-    tft.setCursor(ml - 10, mt + gh + 15); tft.printf("%dm", offset / 60);
-    tft.setCursor(ml + gw / 2 - 12, mt + gh + 15); tft.printf("%dm", (offset + window / 2) / 60);
-    tft.setCursor(ml + gw - 20, mt + gh + 15); tft.printf("%dm", (offset + window) / 60);
+    // Подписи осей теперь показывают абсолютное время работы (0m = старт)
+    tft.setCursor(ml - 10, mt + gh + 15); tft.printf("%dm", view_start_time / 60);
+    tft.setCursor(ml + gw / 2 - 12, mt + gh + 15); tft.printf("%dm", (view_start_time + view_end_time) / 120);
+    tft.setCursor(ml + gw - 20, mt + gh + 15); tft.printf("%dm", view_end_time / 60);
 
     // 4. Отрисовка точек графика (Pass 2)
     int prev_x = -1, prev_y = -1;
     for (int i = 0; i < count; i++) {
         const DataPoint& dp = model.getHistory(i);
-        if (now_sec < dp.ts) continue;
-        uint32_t age = now_sec - dp.ts;
         
-        if (age >= offset && age <= offset + window) {
-            float x_norm = (float)(age - offset) / (float)window;
+        if (dp.ts >= view_start_time && dp.ts <= view_end_time) {
+            float x_norm = (float)(dp.ts - view_start_time) / (float)window;
             int x = ml + (int)(x_norm * gw);
             int y = pToY(dp.pressure);
             

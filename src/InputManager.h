@@ -20,10 +20,10 @@ private:
     JoyState last_joy_state;
     uint32_t joy_last_ms;
     
-    // Уверенные значения для срабатывания с учетом физической погрешности джойстика
-    static constexpr int JOY_THRESH_HI = 3400;
-    static constexpr int JOY_THRESH_LO = 600;
-    // Зона "покоя" для противоположной оси, чтобы исключить диагональные (угловые) нажатия
-    static constexpr int JOY_CENTER_HI = 3000;
-    static constexpr int JOY_CENTER_LO = 1000;
+    // Максимально мягкие пороги: джойстик сработает даже если не доходит до конца
+    static constexpr int JOY_THRESH_HI = 2800; 
+    static constexpr int JOY_THRESH_LO = 1200;
+    // Расширенная зона покоя для исключения блокировки осей
+    static constexpr int JOY_CENTER_HI = 3200;
+    static constexpr int JOY_CENTER_LO = 800;
 };

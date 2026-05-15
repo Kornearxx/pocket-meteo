@@ -56,15 +56,15 @@ void InputManager::handleInput() {
         if (current_state == JoyState::UP) {
             weatherModel->display_mode = (weatherModel->display_mode == 0) ? 1 : 0;
             displayManager->setNeedsRedraw();
-        } else if (current_state == JoyState::RIGHT) {
+        } else if (current_state == JoyState::LEFT) {
             if (weatherModel->display_mode == 0) { // Только для графика
-                weatherModel->graph_offset_sec += 60; // Прокрутка на 1 мин в прошлое
+                weatherModel->graph_offset_sec += 60; // Сдвигаем камеру Влево (в прошлое)
                 if (weatherModel->graph_offset_sec > 3000) weatherModel->graph_offset_sec = 3000;
                 displayManager->setNeedsRedraw();
             }
-        } else if (current_state == JoyState::LEFT) {
+        } else if (current_state == JoyState::RIGHT) {
             if (weatherModel->display_mode == 0) {
-                if (weatherModel->graph_offset_sec >= 60) weatherModel->graph_offset_sec -= 60; // К настоящему
+                if (weatherModel->graph_offset_sec >= 60) weatherModel->graph_offset_sec -= 60; // Возврат Вправо (к настоящему)
                 else weatherModel->graph_offset_sec = 0;
                 displayManager->setNeedsRedraw();
             }
