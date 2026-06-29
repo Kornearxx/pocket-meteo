@@ -16,11 +16,12 @@ public:
     void setNeedsRedraw() { needs_redraw = true; }
     bool needsRedraw() const { return needs_redraw; }
     void clearRedraw() { needs_redraw = false; }
-    
+
 private:
     void drawGraphMode(const WeatherModel& model);
     void drawCurrentMode(const WeatherModel& model);
-    
+
+    SPIClass spiDisplay;
     Adafruit_ST7789 tft;
     bool needs_redraw = false;
 };

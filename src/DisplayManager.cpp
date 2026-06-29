@@ -11,11 +11,12 @@
 #define COLOR_PRESS   ST77XX_GREEN
 
 DisplayManager::DisplayManager()
-    : tft(&SPI, TFT_CS, TFT_DC, TFT_RST) {}
+    : spiDisplay(HSPI), tft(&spiDisplay, TFT_CS, TFT_DC, TFT_RST) {}
 
 void DisplayManager::init(uint8_t rotation) {
-    // Инициализация ST7789 (библиотека сама учитывает offset для матрицы 172x320)
-    tft.init(172, 320);
+    spiDisplay.begin(TFT_SCLK, TFT_MISO, TFT_MOSI, TFT_CS);
+    tft.init(240, 320);
+    tft.invertDisplay(true); // IPS-панель ST7789T3
     tft.setRotation(rotation);
     tft.fillScreen(COLOR_BG);
 }

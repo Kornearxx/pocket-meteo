@@ -5,7 +5,6 @@
  */
 #include <Arduino.h>
 #include <Wire.h>
-#include <SPI.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BMP280.h>
 #include <Adafruit_NeoPixel.h>
@@ -66,7 +65,7 @@ void checkTiltSensor() {
 void setup() {
     Serial.begin(115200);
     delay(2000);
-    Serial.println("\n=== BOOT: Pocket Station v6 (LCD C6) ===");
+    Serial.println("\n=== BOOT: Pocket Station v7 (ESP32-S3-LCD-2) ===");
     
     pinMode(TILT_PIN, INPUT_PULLUP);
     
@@ -78,7 +77,6 @@ void setup() {
     analogWrite(TFT_BL, TFT_BRIGHTNESS);
 
     Wire.begin(BMP_SDA, BMP_SCL);
-    SPI.begin(TFT_SCLK, TFT_MISO, TFT_MOSI, TFT_CS);
     
     Serial.print("[BMP280] ");
     // Fallback: пробуем сначала адрес из конфига (0x77), если не найден - пробуем 0x76
