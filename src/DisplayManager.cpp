@@ -10,38 +10,102 @@
 #define COLOR_TEMP    ST77XX_ORANGE
 #define COLOR_PRESS   ST77XX_GREEN
 
+namespace {
+
+int16_t textWidth(Adafruit_GFX& gfx, const char* text) {
+    int16_t x1, y1;
+    uint16_t w, h;
+    gfx.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
+    return static_cast<int16_t>(w);
+}
+
+void drawTextRight(Adafruit_GFX& gfx, int16_t rightX, int16_t baselineY, const char* text) {
+    int16_t x1, y1;
+    uint16_t w, h;
+    gfx.getTextBounds(text, 0, baselineY, &x1, &y1, &w, &h);
+    gfx.setCursor(rightX - static_cast<int16_t>(w), baselineY);
+    gfx.print(text);
+}
+
+} // namespace
+
 DisplayManager::DisplayManager()
     : spiDisplay(HSPI), tft(&spiDisplay, TFT_CS, TFT_DC, TFT_RST) {}
+
+DisplayManager::~DisplayManager() {
+    delete canvas;
+}
+
+void DisplayManager::ensureCanvas() {
+    const int w = tft.width();
+    const int h = tft.height();
+    if (canvas && canvas->width() == w && canvas->height() == h) {
+        return;
+    }
+    delete canvas;
+    canvas = new GFXcanvas16(w, h);
+}
+
+void DisplayManager::blitCanvas() {
+    if (!canvas) {
+        return;
+    }
+    tft.drawRGBBitmap(0, 0, canvas->getBuffer(), canvas->width(), canvas->height());
+}
 
 void DisplayManager::init(uint8_t rotation) {
     spiDisplay.begin(TFT_SCLK, TFT_MISO, TFT_MOSI, TFT_CS);
     tft.init(240, 320);
     tft.invertDisplay(true); // IPS-панель ST7789T3
     tft.setRotation(rotation);
-    tft.fillScreen(COLOR_BG);
+    ensureCanvas();
+    if (canvas) {
+        canvas->fillScreen(COLOR_BG);
+        blitCanvas();
+    } else {
+        tft.fillScreen(COLOR_BG);
+    }
 }
 
 void DisplayManager::setRotation(uint8_t rotation) {
     tft.setRotation(rotation);
-    tft.fillScreen(COLOR_BG);
-}
-
-void DisplayManager::drawScreen(const WeatherModel& model) {
-    // На TFT мы можем просто заливать экран без циклов обновления страниц EPD
-    tft.fillScreen(COLOR_BG);
-
-    if (model.display_mode == 0) {
-        drawGraphMode(model);
+    ensureCanvas();
+    if (canvas) {
+        canvas->fillScreen(COLOR_BG);
+        blitCanvas();
     } else {
-        drawCurrentMode(model);
+        tft.fillScreen(COLOR_BG);
     }
 }
 
-void DisplayManager::drawGraphMode(const WeatherModel& model) {
-    tft.setFont(&FreeSans9pt7b);
-    const int ml = 45, mr = 5, mt = 10, mb = 20; // Увеличили ml для вмещения десятых долей
-    const int gw = tft.width() - ml - mr;
-    const int gh = tft.height() - mt - mb;
+void DisplayManager::drawScreen(const WeatherModel& model) {
+    ensureCanvas();
+    if (!canvas) {
+        tft.fillScreen(COLOR_BG);
+        if (model.display_mode == 0) {
+            drawGraphMode(model, tft);
+        } else {
+            drawCurrentMode(model, tft);
+        }
+        return;
+    }
+
+    canvas->fillScreen(COLOR_BG);
+    if (model.display_mode == 0) {
+        drawGraphMode(model, *canvas);
+    } else {
+        drawCurrentMode(model, *canvas);
+    }
+    blitCanvas();
+}
+
+void DisplayManager::drawGraphMode(const WeatherModel& model, Adafruit_GFX& gfx) {
+    gfx.setFont(&FreeSans9pt7b);
+    const int ml = 52, mr = 5, mt = 10, mb = 22;
+    const int gw = gfx.width() - ml - mr;
+    const int gh = gfx.height() - mt - mb;
+    const int labelRight = ml - 5;
+    const int timeY = mt + gh + 16;
     
     uint32_t offset = model.graph_offset_sec;
     uint32_t window = 600; // Окно 10 минут
@@ -87,19 +151,52 @@ void DisplayManager::drawGraphMode(const WeatherModel& model) {
         return mt + gh - (int)(constrain((p - P_MIN) / P_RANGE, 0.0f, 1.0f) * gh); 
     };
 
-    // 3. Отрисовка осей и подписей
-    tft.drawLine(ml, mt + gh, ml + gw, mt + gh, COLOR_AXIS);
-    tft.drawLine(ml, mt, ml, mt + gh, COLOR_AXIS);
-    
-    tft.setTextColor(COLOR_AXIS);
-    tft.setCursor(0, pToY(P_MAX) + 12); tft.printf("%.1f", P_MAX);
-    tft.setCursor(0, pToY(mid_p) + 5);  tft.printf("%.1f", mid_p);
-    tft.setCursor(0, pToY(P_MIN) - 4);  tft.printf("%.1f", P_MIN);
+    // 3. Отрисовка осей, делений и подписей
+    gfx.drawLine(ml, mt + gh, ml + gw, mt + gh, COLOR_AXIS);
+    gfx.drawLine(ml, mt, ml, mt + gh, COLOR_AXIS);
 
-    // Подписи осей теперь показывают абсолютное время работы (0m = старт)
-    tft.setCursor(ml - 10, mt + gh + 15); tft.printf("%dm", view_start_time / 60);
-    tft.setCursor(ml + gw / 2 - 12, mt + gh + 15); tft.printf("%dm", (view_start_time + view_end_time) / 120);
-    tft.setCursor(ml + gw - 20, mt + gh + 15); tft.printf("%dm", view_end_time / 60);
+    auto drawYTick = [&](float p) {
+        int y = pToY(p);
+        gfx.drawLine(ml - 4, y, ml, y, COLOR_AXIS);
+    };
+    drawYTick(P_MAX);
+    drawYTick(mid_p);
+    drawYTick(P_MIN);
+
+    // Подписи давления — фиксированные слоты слева, без наложения при узком диапазоне
+    gfx.setTextColor(COLOR_AXIS);
+    char pbuf[12];
+    snprintf(pbuf, sizeof(pbuf), "%.1f", P_MAX);
+    drawTextRight(gfx, labelRight, mt + 12, pbuf);
+    snprintf(pbuf, sizeof(pbuf), "%.1f", mid_p);
+    drawTextRight(gfx, labelRight, mt + gh / 2 + 6, pbuf);
+    snprintf(pbuf, sizeof(pbuf), "%.1f", P_MIN);
+    drawTextRight(gfx, labelRight, mt + gh - 2, pbuf);
+
+    // Подписи времени — выравнивание по краям и центру с защитой от пересечения
+    char tbuf[10];
+    snprintf(tbuf, sizeof(tbuf), "%lum", view_start_time / 60);
+    const int wStart = textWidth(gfx, tbuf);
+    gfx.setCursor(ml, timeY);
+    gfx.print(tbuf);
+
+    snprintf(tbuf, sizeof(tbuf), "%lum", (view_start_time + view_end_time) / 120);
+    const int wMid = textWidth(gfx, tbuf);
+    const int xMid = ml + gw / 2 - wMid / 2;
+
+    snprintf(tbuf, sizeof(tbuf), "%lum", view_end_time / 60);
+    const int wEnd = textWidth(gfx, tbuf);
+    const int xEnd = ml + gw - wEnd;
+
+    snprintf(tbuf, sizeof(tbuf), "%lum", (view_start_time + view_end_time) / 120);
+    if (xMid >= ml + wStart + 4 && xMid + wMid <= xEnd - 4) {
+        gfx.setCursor(xMid, timeY);
+        gfx.print(tbuf);
+    }
+
+    snprintf(tbuf, sizeof(tbuf), "%lum", view_end_time / 60);
+    gfx.setCursor(xEnd, timeY);
+    gfx.print(tbuf);
 
     // 4. Отрисовка точек графика (Pass 2)
     int prev_x = -1, prev_y = -1;
@@ -111,8 +208,8 @@ void DisplayManager::drawGraphMode(const WeatherModel& model) {
             int x = ml + (int)(x_norm * gw);
             int y = pToY(dp.pressure);
             
-            tft.fillRect(x - 2, y - 2, 4, 4, COLOR_GRAPH);
-            if (prev_x != -1) tft.drawLine(prev_x, prev_y, x, y, COLOR_GRAPH);
+            gfx.fillRect(x - 2, y - 2, 4, 4, COLOR_GRAPH);
+            if (prev_x != -1) gfx.drawLine(prev_x, prev_y, x, y, COLOR_GRAPH);
             prev_x = x; 
             prev_y = y;
         } else {
@@ -121,28 +218,28 @@ void DisplayManager::drawGraphMode(const WeatherModel& model) {
     }
 }
 
-void DisplayManager::drawCurrentMode(const WeatherModel& model) {
-    tft.setFont(&FreeSansBold12pt7b);
+void DisplayManager::drawCurrentMode(const WeatherModel& model, Adafruit_GFX& gfx) {
+    gfx.setFont(&FreeSansBold12pt7b);
     
-    tft.setTextColor(COLOR_TEMP);
-    tft.setCursor(20, 45);
+    gfx.setTextColor(COLOR_TEMP);
+    gfx.setCursor(20, 45);
     // Аккуратно отрисовываем символ градусов (шрифты FreeFonts часто не поддерживают расширенное ASCII)
-    tft.printf("Temp: %.1f", model.web_temp);
-    int cx = tft.getCursorX() + 4;
-    int cy = tft.getCursorY() - 16;
-    tft.drawCircle(cx, cy, 3, COLOR_TEMP);
-    tft.setCursor(cx + 8, tft.getCursorY());
-    tft.print("C");
+    gfx.printf("Temp: %.1f", model.web_temp);
+    int cx = gfx.getCursorX() + 4;
+    int cy = gfx.getCursorY() - 16;
+    gfx.drawCircle(cx, cy, 3, COLOR_TEMP);
+    gfx.setCursor(cx + 8, gfx.getCursorY());
+    gfx.print("C");
     
-    tft.setTextColor(COLOR_PRESS);
-    tft.setCursor(20, 90);
-    tft.printf("Press: %.0f hPa", model.web_press);
+    gfx.setTextColor(COLOR_PRESS);
+    gfx.setCursor(20, 90);
+    gfx.printf("Press: %.0f hPa", model.web_press);
     
-    tft.setFont(&FreeSans9pt7b);
-    tft.setTextColor(COLOR_TEXT);
-    tft.setCursor(20, 135);
-    tft.print("FC: ");
+    gfx.setFont(&FreeSans9pt7b);
+    gfx.setTextColor(COLOR_TEXT);
+    gfx.setCursor(20, 135);
+    gfx.print("FC: ");
     
-    tft.setTextColor(COLOR_GRAPH);
-    tft.println(model.web_forecast);
+    gfx.setTextColor(COLOR_GRAPH);
+    gfx.println(model.web_forecast);
 }

@@ -10,6 +10,7 @@
 class DisplayManager {
 public:
     DisplayManager();
+    ~DisplayManager();
     void init(uint8_t rotation);
     void setRotation(uint8_t rotation);
     void drawScreen(const WeatherModel& model);
@@ -18,10 +19,13 @@ public:
     void clearRedraw() { needs_redraw = false; }
 
 private:
-    void drawGraphMode(const WeatherModel& model);
-    void drawCurrentMode(const WeatherModel& model);
+    void ensureCanvas();
+    void blitCanvas();
+    void drawGraphMode(const WeatherModel& model, Adafruit_GFX& gfx);
+    void drawCurrentMode(const WeatherModel& model, Adafruit_GFX& gfx);
 
     SPIClass spiDisplay;
     Adafruit_ST7789 tft;
+    GFXcanvas16* canvas = nullptr;
     bool needs_redraw = false;
 };
